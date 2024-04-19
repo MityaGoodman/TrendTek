@@ -12,7 +12,7 @@ from rembg import remove
 counter_review = 0
 
 
-bot = telebot.TeleBot('6785587294:AAFhpmeK0RG1kujFnyE9QoivLNd7qvp8bdI')
+bot = telebot.TeleBot('YOURBOT:TOKEN')
 counter = 0
 @bot.message_handler(commands = ['start'])
 def main(message):
@@ -41,23 +41,27 @@ def main(message):
 
 _user_id = ''
 def phone_number(message):
-    number = message.text.strip()
-    result = re.match(r'^(\+7|7|8)?[\s\-]?\(?[489][0-9]{2}\)?[\s\-]?[0-9]{3}[\s\-]?[0-9]{2}[\s\-]?[0-9]{2}$', number)
-    if not result:
+    if message.content_type == 'text':
+        number = message.text.strip()
+        result = re.match(r'^(\+7|7|8)?[\s\-]?\(?[489][0-9]{2}\)?[\s\-]?[0-9]{3}[\s\-]?[0-9]{2}[\s\-]?[0-9]{2}$', number)
+        if not result:
+            bot.send_message(message.chat.id, 'Ваше сообщение не является номером телефона. Пожалуйста, введите номер')
+            bot.register_next_step_handler(message, phone_number)
+        else:
+            bot.send_message(message.chat.id, 'Принято!')
+            conn = sqlite3.connect('Stylist.sql')
+            cur = conn.cursor()
+            cur.execute("INSERT INTO users (id, name, phone_number) VALUES ('%s', '%s', '%s')" % (message.from_user.id, message.from_user.username, number))
+            conn.commit()
+            cur.close()
+            conn.close()
+            global _user_id
+            _user_id = message.from_user.id
+            bot.send_message(message.chat.id, 'Вы зарегистрированы!')
+            bot.send_message(message.chat.id, 'Введите команду /menu, чтобы просмотреть список команд')
+    else:
         bot.send_message(message.chat.id, 'Ваше сообщение не является номером телефона. Пожалуйста, введите номер')
         bot.register_next_step_handler(message, phone_number)
-    else:
-        bot.send_message(message.chat.id, 'Принято!')
-        conn = sqlite3.connect('Stylist.sql')
-        cur = conn.cursor()
-        cur.execute("INSERT INTO users (id, name, phone_number) VALUES ('%s', '%s', '%s')" % (message.from_user.id, message.from_user.username, number))
-        conn.commit()
-        cur.close()
-        conn.close()
-        global _user_id
-        _user_id = message.from_user.id
-        bot.send_message(message.chat.id, 'Вы зарегистрированы!')
-        bot.send_message(message.chat.id, 'Введите команду /menu, чтобы просмотреть список команд')
 
 
 @bot.message_handler(commands=['menu'])
@@ -91,14 +95,8 @@ def on_click(message):
        conn = sqlite3.connect('Stylist.sql')
        cur = conn.cursor()
        us_id = cur.execute('SELECT * FROM users').fetchall()
-       #print(us_id)
        us_id = cur.execute('SELECT * FROM images').fetchall()
-       #print(us_id)
-       #us_id = cur.execute(f'SELECT id FROM users WHERE name={message.from_user.username}', ).fetchone()
-       #print(us_id)
        images = cur.execute(f'SELECT image FROM images WHERE user_id={message.from_user.id}').fetchall()
-       #print(message.from_user.id)
-       #print(images)
        if len(images) == 0:
            markup_ = types.ReplyKeyboardRemove()
            bot.send_message(message.chat.id, 'У вас пока нет добавленных вещей!', reply_markup = markup_)
@@ -142,10 +140,8 @@ def on_click(message):
        main(message)
    else:
        error(message, on_click)
-# 148
-# верх + низ + обувь
-# платье + обувь
-# рюкзак и аксессуары - опционально
+
+
 def make_style(message):
     if message.content_type == 'text' and message.text in ['Повседневный', 'Деловой', 'Вечерний', 'Спортивный']:
         _style = message.text
@@ -153,7 +149,6 @@ def make_style(message):
         cur = conn.cursor()
         images = cur.execute(f'SELECT image, category, subcategory, style FROM images WHERE user_id={message.from_user.id}').fetchall()
         false_markup = types.ReplyKeyboardRemove()
-        print(images)
         false_text = 'У вас нет достаточного количества элементов одежды выбранного стиля. Воспользуйтесь функцией “Добавить вещи”'
         my_dict = {
             "up": [False, []],
@@ -188,7 +183,6 @@ def make_style(message):
                 my_dict["acc"][1].append(image[0])
         cur.close()
         conn.close()
-        print(my_dict)
         if my_dict["shoes"][0] == False or ((my_dict["up"][0] == False) and (my_dict["dress"][0] == False)) or ((my_dict["dress"][0] == False) and my_dict["down"][0] == False):
             bot.send_message(message.chat.id, false_text, reply_markup=false_markup)
             return
@@ -287,7 +281,6 @@ def user_review(message):
         bot.send_message(message.chat.id, 'Спасибо за обратную связь!')
         conn = sqlite3.connect('Stylist.sql')
         cur = conn.cursor()
-        print(cur.execute("SELECT * FROM reviews").fetchall())
     elif message.content_type == 'text' and message.text == '/menu':
         menu(message)
     elif message.content_type == 'text' and message.text == '/start':
@@ -402,10 +395,8 @@ def type_photo(message):
 file_info = ''
 counter = 0
 
-#@bot.message_handler(content_types=['photo'])
 def get_photo(message):
     global file_info
-    #file_info = bot.get_file(message.photo[-1].file_id)
     if message.content_type == 'text' and message.text == '/start':
         main(message)
     elif message.content_type == 'text' and message.text == '/menu':
@@ -440,10 +431,8 @@ def callback_message(callback):
             global _user_id
             bot.delete_message(callback.message.chat.id, callback.message.message_id)
             bot.send_message(callback.message.chat.id, 'Дождитесь загрузки, пожалуйста')
-            #bot.delete_message(callback.message.chat.id, callback.message.message_id)
             conn = sqlite3.connect('Stylist.sql')
             cur = conn.cursor()
-            #us_id = cur.execute('SELECT id FROM users WHERE name=?', (callback.message.from_user.username,)).fetchone()
             downloaded_file = bot.download_file(file_info.file_path)
             src = f'photos/{callback.from_user.id}/';
             if os.path.exists(src) is False:
@@ -465,19 +454,9 @@ def callback_message(callback):
             conn.close()
             bot.send_message(callback.message.chat.id, 'Фото внесено в базу')
             arr.clear()
-            #bot.delete_message(callback.message.chat.id, callback.message.message_id)
             bot.delete_message(callback.message.chat.id, callback.message.message_id + 1)
             bot.clear_step_handler_by_chat_id(chat_id=callback.message.chat.id)
     except:
         bot.register_next_step_handler(callback, callback_message)
-
-"""
-@bot.message_handler(['sticker'])
-def info(message):
-    if message.text.lower() == 'привет':
-        bot.reply_to(message, f'Привет, {message.from_user.username}!')
-
-"""
-
 
 bot.polling(none_stop=True)
